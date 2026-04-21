@@ -320,9 +320,50 @@
       animation: shimmer 1.25s ease-in-out infinite;
     }
     @keyframes shimmer { to { left: 120%; } }
+
+    /* ── Toasts ── */
+    .toast-root {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10002;
+      display: flex;
+      flex-direction: column-reverse;
+      align-items: center;
+      gap: 8px;
+      max-width: min(420px, calc(100vw - 32px));
+      pointer-events: none;
+    }
+    .toast {
+      pointer-events: auto;
+      padding: 12px 18px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.35;
+      box-shadow: 0 8px 28px rgba(0,0,0,.45);
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: #e8e8e8;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity .22s ease, transform .22s ease;
+    }
+    .toast.toast-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .toast-success { border-color: rgba(79,171,255,.35); background: rgba(22,28,32,.96); }
+    .toast-error {
+      border-color: rgba(254,133,118,.45);
+      background: rgba(32,22,22,.96);
+      color: #ffc8c0;
+    }
   </style>
 </head>
 <body>
+<div id="toast-root" class="toast-root" aria-live="polite" aria-relevant="additions"></div>
 <div class="container">
 
   <div class="header" style="position:relative">
@@ -373,7 +414,6 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby1GAkpcZIAIbVB
 const DOTS = ['dot-blue','dot-purple','dot-yellow','dot-coral'];
 const DOT_COLORS = { 'dot-blue':'#4FABFF','dot-purple':'#907FFF','dot-yellow':'#FFDF44','dot-coral':'#FE8576' };
 let selectedColor = 'dot-blue';
-let sectionCounter = 99;
 const openState = {};
 
 // data is built from sheet rows
@@ -400,7 +440,7 @@ function writeCachedRows(rows) {
 
 /** Keeps local snapshot aligned with toggles so reload shows the same state before the network round trip. */
 function patchCachedSheetRowChecked(rowId, checked) {
-  if (!rowId || String(rowId).endsWith('_task')) return;
+  if (!isPersistableRowId(rowId)) return;
   try {
     const raw = localStorage.getItem(SHEET_CACHE_KEY);
     if (!raw) return;
@@ -440,6 +480,54 @@ function setStatusBanner(message) {
   }
   el.hidden = false;
   el.innerHTML = `<span class="status-dot"></span><span>${message}</span>`;
+}
+
+const TOAST_DURATION_MS = 2600;
+let toastSeq = 0;
+let checkSavedToastTimer = null;
+
+function showToast(message, type) {
+  type = type || 'success';
+  const root = document.getElementById('toast-root');
+  if (!root || !message) return;
+  while (root.children.length > 4) root.firstChild.remove();
+
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + type;
+  el.setAttribute('role', 'status');
+  el.dataset.tid = String(++toastSeq);
+  el.textContent = message;
+  root.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('toast-visible'));
+
+  const dismiss = () => {
+    el.classList.remove('toast-visible');
+    setTimeout(() => el.remove(), 280);
+  };
+  setTimeout(dismiss, TOAST_DURATION_MS);
+}
+
+/** One toast for many quick checkbox saves; timer resets on each save. */
+function showCheckSavedToast() {
+  const root = document.getElementById('toast-root');
+  if (!root) return;
+  let el = document.getElementById('toast-check-saved');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast-check-saved';
+    el.className = 'toast toast-success';
+    el.setAttribute('role', 'status');
+    el.textContent = 'Saved';
+    root.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('toast-visible'));
+  }
+  clearTimeout(checkSavedToastTimer);
+  checkSavedToastTimer = setTimeout(() => {
+    el.classList.remove('toast-visible');
+    setTimeout(() => {
+      if (el.parentNode) el.remove();
+    }, 280);
+  }, 1800);
 }
 
 function renderLoadingPlaceholder(message) {
@@ -517,7 +605,41 @@ async function apiPost(payload) {
   });
 }
 
+/** Re-fetch sheet rows and replace in-memory data + localStorage so reloads and other users stay in sync. */
+async function silentRefreshFromSheet() {
+  try {
+    const res = await apiGet();
+    if (!res || !res.ok) return false;
+    writeCachedRows(res.data);
+    data = buildDataFromRows(res.data);
+    renderAll();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+let postCheckRefreshTimer = null;
+function scheduleSilentRefreshAfterChecks() {
+  clearTimeout(postCheckRefreshTimer);
+  postCheckRefreshTimer = setTimeout(() => {
+    void silentRefreshFromSheet();
+  }, 650);
+}
+
+function isPersistableRowId(rowId) {
+  if (!rowId) return false;
+  const s = String(rowId);
+  if (s.startsWith('pending')) return false;
+  if (s.endsWith('_task')) return false;
+  return true;
+}
+
 // ─── Build data[] from flat sheet rows ───────────────────────────────────────
+function normalizedChecked(v) {
+  return v === true || String(v || '').toUpperCase() === 'TRUE';
+}
+
 function buildDataFromRows(rows) {
   const sections = [];
   const secMap   = {};
@@ -530,10 +652,11 @@ function buildDataFromRows(rows) {
       sections.push(sec);
     }
     const sec = secMap[catKey];
+    const chk = normalizedChecked(row.checked);
 
     if (!row.subtask) {
       // Top-level task
-      sec.items.push({ text: row.task, url: row.url || undefined, subs: [], rowId: row.rowId, checked: row.checked });
+      sec.items.push({ text: row.task, url: row.url || undefined, subs: [], rowId: row.rowId, checked: chk });
     } else {
       // Subtask — find or create the parent task
       let parent = sec.items.find(i => i.text === row.task);
@@ -546,7 +669,7 @@ function buildDataFromRows(rows) {
         url: row.url || undefined,
         groupBefore: row.groupLabel || undefined,
         rowId: row.rowId,
-        checked: row.checked,
+        checked: chk,
       });
     }
   });
@@ -685,7 +808,27 @@ function startSectionEdit(e, secId) {
 
   const save = () => {
     const val = input.value.trim();
-    if (val) sec.title = val;
+    const oldTitle = sec.title;
+    if (!val) {
+      renderAll();
+      return;
+    }
+    if (val === oldTitle) {
+      renderAll();
+      return;
+    }
+    sec.title = val;
+    void (async () => {
+      try {
+        await apiPost({ action: 'rename_category', oldCategory: oldTitle, newCategory: val });
+        await silentRefreshFromSheet();
+        showToast('Category name saved', 'success');
+      } catch (err) {
+        sec.title = oldTitle;
+        showToast('Could not rename category.', 'error');
+        renderAll();
+      }
+    })();
     renderAll();
   };
   input.onkeydown = e => {
@@ -718,12 +861,30 @@ function startEdit(btn, secId, iIdx, sIdx) {
 
   const save = () => {
     const val = input.value.trim();
-    if (val) {
-      const rowId = item.rowId;
-      const field = sIdx === null ? 'task' : 'subtask';
-      if (rowId) apiPost({ action: 'update_row', rowId, fields: { [field]: val } });
-      item.text = val;
+    if (!val) {
+      renderAll();
+      return;
     }
+    const rowId = item.rowId;
+    const field = sIdx === null ? 'task' : 'subtask';
+    const prevText = item.text;
+    if (!isPersistableRowId(rowId)) {
+      item.text = val;
+      renderAll();
+      return;
+    }
+    item.text = val;
+    void (async () => {
+      try {
+        await apiPost({ action: 'update_row', rowId, fields: { [field]: val } });
+        await silentRefreshFromSheet();
+        showToast('Saved', 'success');
+      } catch (err) {
+        item.text = prevText;
+        showToast('Could not save text.', 'error');
+        renderAll();
+      }
+    })();
     renderAll();
   };
 
@@ -782,8 +943,21 @@ function saveLink(secId, iIdx, sIdx, inputId) {
   const sec = data.find(s => s.id === secId);
   if (!sec) return;
   const item = sIdx === null ? sec.items[iIdx] : sec.items[iIdx].subs[sIdx];
+  const prevUrl = item.url;
   item.url = val || undefined;
-  if (item.rowId) apiPost({ action: 'update_row', rowId: item.rowId, fields: { url: val } });
+  if (isPersistableRowId(item.rowId)) {
+    void (async () => {
+      try {
+        await apiPost({ action: 'update_row', rowId: item.rowId, fields: { url: val } });
+        await silentRefreshFromSheet();
+        showToast('Link saved', 'success');
+      } catch (err) {
+        item.url = prevUrl;
+        showToast('Could not save link.', 'error');
+        renderAll();
+      }
+    })();
+  }
   renderAll();
 }
 
@@ -791,8 +965,21 @@ function clearLink(secId, iIdx, sIdx) {
   const sec = data.find(s => s.id === secId);
   if (!sec) return;
   const item = sIdx === null ? sec.items[iIdx] : sec.items[iIdx].subs[sIdx];
-  if (item.rowId) apiPost({ action: 'update_row', rowId: item.rowId, fields: { url: '' } });
+  const prevUrl = item.url;
   delete item.url;
+  if (isPersistableRowId(item.rowId)) {
+    void (async () => {
+      try {
+        await apiPost({ action: 'update_row', rowId: item.rowId, fields: { url: '' } });
+        await silentRefreshFromSheet();
+        showToast('Link removed', 'success');
+      } catch (err) {
+        item.url = prevUrl;
+        showToast('Could not remove link.', 'error');
+        renderAll();
+      }
+    })();
+  }
   renderAll();
 }
 
@@ -826,11 +1013,17 @@ function commitSub(secId, iIdx) {
   if (!text) return;
   const sec = data.find(s => s.id === secId);
   if (!sec) return;
-  if (!sec.items[iIdx].subs) sec.items[iIdx].subs = [];
   const parentTask = sec.items[iIdx].text;
-  apiPost({ action: 'add_row', category: sec.title, dot: sec.dot, task: parentTask, subtask: text });
-  sec.items[iIdx].subs.push({ text, rowId: 'pending-' + Date.now() });
-  renderAll();
+  input?.closest('.add-sub-row')?.remove();
+  void (async () => {
+    try {
+      await apiPost({ action: 'add_row', category: sec.title, dot: sec.dot, task: parentTask, subtask: text });
+      await silentRefreshFromSheet();
+      showToast('Subtask added', 'success');
+    } catch (err) {
+      showToast('Could not add subtask.', 'error');
+    }
+  })();
 }
 
 // ─── Add task ─────────────────────────────────────────────────────────────────
@@ -840,9 +1033,16 @@ function addTask(secId) {
   if (!text) return;
   const sec = data.find(s => s.id === secId);
   if (!sec) return;
-  apiPost({ action: 'add_row', category: sec.title, dot: sec.dot, task: text });
-  sec.items.push({ text, subs: [], rowId: 'pending-' + Date.now() });
-  renderAll();
+  void (async () => {
+    try {
+      await apiPost({ action: 'add_row', category: sec.title, dot: sec.dot, task: text });
+      if (input) input.value = '';
+      await silentRefreshFromSheet();
+      showToast('Task added', 'success');
+    } catch (err) {
+      showToast('Could not add task.', 'error');
+    }
+  })();
 }
 
 // ─── Delete ───────────────────────────────────────────────────────────────────
@@ -850,38 +1050,74 @@ function deleteSection(e, secId) {
   e.stopPropagation();
   if (!confirm('Delete this category and all its tasks?')) return;
   const sec = data.find(s => s.id === secId);
-  if (sec) {
-    sec.items.forEach(item => {
-      if (item.rowId && !item.rowId.startsWith('pending')) apiPost({ action: 'delete_row', rowId: item.rowId });
-      (item.subs || []).forEach(sub => {
-        if (sub.rowId && !sub.rowId.startsWith('pending')) apiPost({ action: 'delete_row', rowId: sub.rowId });
-      });
+  if (!sec) return;
+  const jobs = [];
+  sec.items.forEach(item => {
+    if (isPersistableRowId(item.rowId)) jobs.push(apiPost({ action: 'delete_row', rowId: item.rowId }));
+    (item.subs || []).forEach(sub => {
+      if (isPersistableRowId(sub.rowId)) jobs.push(apiPost({ action: 'delete_row', rowId: sub.rowId }));
     });
+  });
+  if (jobs.length === 0) {
+    const idx = data.findIndex(s => s.id === secId);
+    if (idx > -1) { data.splice(idx, 1); delete openState[secId]; }
+    renderAll();
+    showToast('Category deleted', 'success');
+    return;
   }
-  const idx = data.findIndex(s => s.id === secId);
-  if (idx > -1) { data.splice(idx, 1); delete openState[secId]; }
-  renderAll();
+  void Promise.all(jobs)
+    .then(() => silentRefreshFromSheet())
+    .then(() => showToast('Category deleted', 'success'))
+    .catch(() => {
+      showToast('Could not delete everything on the server.', 'error');
+      return silentRefreshFromSheet();
+    });
 }
 
 function deleteTask(secId, iIdx) {
   const sec = data.find(s => s.id === secId);
   if (!sec) return;
   const item = sec.items[iIdx];
-  if (item?.rowId && !item.rowId.startsWith('pending')) apiPost({ action: 'delete_row', rowId: item.rowId });
+  const jobs = [];
+  if (isPersistableRowId(item?.rowId)) jobs.push(apiPost({ action: 'delete_row', rowId: item.rowId }));
   (item?.subs || []).forEach(sub => {
-    if (sub.rowId && !sub.rowId.startsWith('pending')) apiPost({ action: 'delete_row', rowId: sub.rowId });
+    if (isPersistableRowId(sub.rowId)) jobs.push(apiPost({ action: 'delete_row', rowId: sub.rowId }));
   });
-  sec.items.splice(iIdx, 1);
-  renderAll();
+  if (jobs.length === 0) {
+    sec.items.splice(iIdx, 1);
+    renderAll();
+    showToast('Task deleted', 'success');
+    return;
+  }
+  void Promise.all(jobs)
+    .then(() => silentRefreshFromSheet())
+    .then(() => showToast('Task deleted', 'success'))
+    .catch(() => {
+      showToast('Could not delete on the server.', 'error');
+      return silentRefreshFromSheet();
+    });
 }
 
 function deleteSubtask(secId, iIdx, sIdx) {
   const sec = data.find(s => s.id === secId);
   if (!sec) return;
   const sub = sec.items[iIdx].subs[sIdx];
-  if (sub?.rowId && !sub.rowId.startsWith('pending')) apiPost({ action: 'delete_row', rowId: sub.rowId });
-  sec.items[iIdx].subs.splice(sIdx, 1);
-  renderAll();
+  if (!isPersistableRowId(sub?.rowId)) {
+    sec.items[iIdx].subs.splice(sIdx, 1);
+    renderAll();
+    showToast('Subtask deleted', 'success');
+    return;
+  }
+  void (async () => {
+    try {
+      await apiPost({ action: 'delete_row', rowId: sub.rowId });
+      await silentRefreshFromSheet();
+      showToast('Subtask deleted', 'success');
+    } catch (err) {
+      showToast('Could not delete subtask.', 'error');
+      await silentRefreshFromSheet();
+    }
+  })();
 }
 
 // ─── Category form ────────────────────────────────────────────────────────────
@@ -898,14 +1134,21 @@ function hideCatForm() {
 function createCategory() {
   const name = document.getElementById('catNameInput').value.trim();
   if (!name) return;
-  const id = 'sec-' + (++sectionCounter);
-  // Add a placeholder row so the category exists in the sheet
-  apiPost({ action: 'add_row', category: name, dot: selectedColor, task: name + ' Overview' });
-  data.push({ id, dot: selectedColor, title: name, items: [{ text: name + ' Overview', subs: [], rowId: 'pending-' + Date.now() }] });
-  openState[id] = true;
   hideCatForm();
-  renderAll();
-  setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior:'smooth', block:'center' }), 80);
+  void (async () => {
+    try {
+      await apiPost({ action: 'add_row', category: name, dot: selectedColor, task: name + ' Overview' });
+      await silentRefreshFromSheet();
+      showToast('Category added', 'success');
+      const target = data.find((s) => s.title === name && s.dot === selectedColor);
+      if (target) {
+        openState[target.id] = true;
+        setTimeout(() => document.getElementById(target.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
+      }
+    } catch (err) {
+      showToast('Could not add category.', 'error');
+    }
+  })();
 }
 
 // ─── Color picker ─────────────────────────────────────────────────────────────
@@ -930,12 +1173,7 @@ function onCheck(cb) {
   const lbl = document.getElementById('lbl-' + cb.id);
   if (lbl) lbl.classList.toggle('checked', cb.checked);
   const rowId = cb.dataset.rowid;
-  if (!rowId) {
-    updateProgress();
-    return;
-  }
-  // Synthetic parent rows (sheet has no matching row id) cannot be persisted.
-  if (String(rowId).endsWith('_task')) {
+  if (!isPersistableRowId(rowId)) {
     updateProgress();
     return;
   }
@@ -951,13 +1189,14 @@ function onCheck(cb) {
   void (async () => {
     try {
       await apiPost({ action: 'set_checked', rowId, checked: cb.checked });
+      showCheckSavedToast();
+      scheduleSilentRefreshAfterChecks();
     } catch (err) {
       cb.checked = prevChecked;
       if (lbl) lbl.classList.toggle('checked', cb.checked);
       patchCachedSheetRowChecked(rowId, cb.checked);
       syncDataCheckedState(rowId, cb.checked);
-      setStatusBanner('Could not save that change. Check your connection and try again.');
-      setTimeout(() => setStatusBanner(''), 6000);
+      showToast('Could not save that change. Check your connection and try again.', 'error');
     } finally {
       wrap?.classList.remove('check-saving');
       updateProgress();

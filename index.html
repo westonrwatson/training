@@ -470,6 +470,79 @@ function syncDataCheckedState(rowId, checked) {
   });
 }
 
+/** Parent tasks synthesized from subtask-only sheet rows use rowId like "r12_task" (no sheet row). */
+function findItemByRowIdAcrossTree(rowId) {
+  const rid = String(rowId);
+  for (const sec of data) {
+    for (let iIdx = 0; iIdx < sec.items.length; iIdx++) {
+      const item = sec.items[iIdx];
+      if (String(item.rowId) === rid) return { sec, iIdx, item };
+      for (let sIdx = 0; sIdx < (item.subs || []).length; sIdx++) {
+        const sub = item.subs[sIdx];
+        if (String(sub.rowId) === rid) return { sec, iIdx, item, sIdx, sub };
+      }
+    }
+  }
+  return null;
+}
+
+function mirrorCheckboxDomByRowId(reactRowId, checked) {
+  const rid = String(reactRowId).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const el = document.querySelector(`input[type="checkbox"][data-rowid="${rid}"]`);
+  if (!el) return;
+  el.checked = checked;
+  const lab = document.getElementById('lbl-' + el.id);
+  if (lab) lab.classList.toggle('checked', checked);
+}
+
+/** Persist parent checkbox by updating every real subtask row in the sheet (same checked state). */
+function handleSyntheticParentToggle(cb, lbl, rowId) {
+  const loc = findItemByRowIdAcrossTree(rowId);
+  const parent = loc?.item;
+  if (!parent || String(parent.rowId) !== String(rowId)) return;
+
+  const subs = parent.subs || [];
+  const subsToWrite = subs.filter((sub) => isPersistableRowId(sub.rowId));
+  const targetChecked = cb.checked;
+  const prevChecked = !targetChecked;
+
+  parent.checked = targetChecked;
+  subs.forEach((sub) => {
+    syncDataCheckedState(sub.rowId, targetChecked);
+    if (isPersistableRowId(sub.rowId)) patchCachedSheetRowChecked(sub.rowId, targetChecked);
+    mirrorCheckboxDomByRowId(sub.rowId, targetChecked);
+  });
+
+  const wrap = cb.closest('.check-wrap');
+  wrap?.classList.add('check-saving');
+  updateProgress();
+
+  if (subsToWrite.length === 0) {
+    wrap?.classList.remove('check-saving');
+    updateProgress();
+    return;
+  }
+
+  void (async () => {
+    try {
+      for (const sub of subsToWrite) {
+        await apiPost({ action: 'set_checked', rowId: sub.rowId, checked: targetChecked });
+      }
+      showCheckSavedToast();
+      scheduleSilentRefreshAfterChecks();
+    } catch (err) {
+      cb.checked = prevChecked;
+      if (lbl) lbl.classList.toggle('checked', cb.checked);
+      parent.checked = prevChecked;
+      await silentRefreshFromSheet();
+      showToast('Could not save that change. Check your connection and try again.', 'error');
+    } finally {
+      wrap?.classList.remove('check-saving');
+      updateProgress();
+    }
+  })();
+}
+
 function setStatusBanner(message) {
   const el = document.getElementById('statusBanner');
   if (!el) return;
@@ -672,6 +745,17 @@ function buildDataFromRows(rows) {
         checked: chk,
       });
     }
+  });
+
+  // Synthetic parents (…_task) have no sheet row — derive checked from subtasks so reload matches the sheet.
+  sections.forEach((sec) => {
+    sec.items.forEach((item) => {
+      if (!item.subs || !item.subs.length) return;
+      if (!String(item.rowId || '').endsWith('_task')) return;
+      const persist = item.subs.filter((s) => isPersistableRowId(s.rowId));
+      if (!persist.length) return;
+      item.checked = persist.every((s) => normalizedChecked(s.checked));
+    });
   });
 
   return sections;
@@ -1173,6 +1257,15 @@ function onCheck(cb) {
   const lbl = document.getElementById('lbl-' + cb.id);
   if (lbl) lbl.classList.toggle('checked', cb.checked);
   const rowId = cb.dataset.rowid;
+  if (!rowId) {
+    updateProgress();
+    return;
+  }
+  // Parent row only exists in the UI when the sheet has subtasks but no dedicated task row (rowId …_task).
+  if (String(rowId).endsWith('_task')) {
+    handleSyntheticParentToggle(cb, lbl, rowId);
+    return;
+  }
   if (!isPersistableRowId(rowId)) {
     updateProgress();
     return;

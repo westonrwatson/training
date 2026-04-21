@@ -91,6 +91,7 @@
     .sub-item .check-box { width: 16px; height: 16px; border-radius: 4px; }
     .sub-item .check-box::after { left: 3px; top: 0; width: 5px; height: 9px; }
     .sub-item .check-wrap { width: 16px; height: 16px; }
+    .check-wrap.check-saving .check-box { opacity: 0.55; box-shadow: 0 0 0 2px rgba(79,171,255,.25); }
 
     /* ── Labels ── */
     .item-label { font-size: 14px; font-weight: 600; color: #e8e8e8; flex: 1; line-height: 1.4; min-width: 0; }
@@ -397,6 +398,38 @@ function writeCachedRows(rows) {
   } catch (_) {}
 }
 
+/** Keeps local snapshot aligned with toggles so reload shows the same state before the network round trip. */
+function patchCachedSheetRowChecked(rowId, checked) {
+  if (!rowId || String(rowId).endsWith('_task')) return;
+  try {
+    const raw = localStorage.getItem(SHEET_CACHE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.rows)) return;
+    let hit = false;
+    const rows = parsed.rows.map((row) => {
+      if (String(row.rowId) === String(rowId)) {
+        hit = true;
+        return Object.assign({}, row, { checked });
+      }
+      return row;
+    });
+    if (hit) localStorage.setItem(SHEET_CACHE_KEY, JSON.stringify({ rows }));
+  } catch (_) {}
+}
+
+function syncDataCheckedState(rowId, checked) {
+  const rid = String(rowId);
+  data.forEach((sec) => {
+    sec.items.forEach((item) => {
+      if (String(item.rowId) === rid) item.checked = checked;
+      (item.subs || []).forEach((sub) => {
+        if (String(sub.rowId) === rid) sub.checked = checked;
+      });
+    });
+  });
+}
+
 function setStatusBanner(message) {
   const el = document.getElementById('statusBanner');
   if (!el) return;
@@ -473,12 +506,14 @@ function apiGet() {
 }
 
 async function apiPost(payload) {
-  // no-cors: browser won't enforce CORS preflight — write fires and succeeds silently
-  fetch(APPS_SCRIPT_URL, {
-    method:  'POST',
-    mode:    'no-cors',
+  // no-cors: no response body, but the request still reaches Apps Script. keepalive helps
+  // the write finish if the user closes the tab right after toggling.
+  await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    mode: 'no-cors',
     headers: { 'Content-Type': 'text/plain' },
-    body:    JSON.stringify(payload),
+    body: JSON.stringify(payload),
+    keepalive: true,
   });
 }
 
@@ -894,10 +929,40 @@ function buildColorPicker() {
 function onCheck(cb) {
   const lbl = document.getElementById('lbl-' + cb.id);
   if (lbl) lbl.classList.toggle('checked', cb.checked);
-  // Find the rowId from the checkbox's data attribute and save to sheet
   const rowId = cb.dataset.rowid;
-  if (rowId) apiPost({ action: 'set_checked', rowId, checked: cb.checked });
+  if (!rowId) {
+    updateProgress();
+    return;
+  }
+  // Synthetic parent rows (sheet has no matching row id) cannot be persisted.
+  if (String(rowId).endsWith('_task')) {
+    updateProgress();
+    return;
+  }
+
+  const wrap = cb.closest('.check-wrap');
+  const prevChecked = !cb.checked;
+
+  patchCachedSheetRowChecked(rowId, cb.checked);
+  syncDataCheckedState(rowId, cb.checked);
+  wrap?.classList.add('check-saving');
   updateProgress();
+
+  void (async () => {
+    try {
+      await apiPost({ action: 'set_checked', rowId, checked: cb.checked });
+    } catch (err) {
+      cb.checked = prevChecked;
+      if (lbl) lbl.classList.toggle('checked', cb.checked);
+      patchCachedSheetRowChecked(rowId, cb.checked);
+      syncDataCheckedState(rowId, cb.checked);
+      setStatusBanner('Could not save that change. Check your connection and try again.');
+      setTimeout(() => setStatusBanner(''), 6000);
+    } finally {
+      wrap?.classList.remove('check-saving');
+      updateProgress();
+    }
+  })();
 }
 
 // ─── Mode toggle ─────────────────────────────────────────────────────────────

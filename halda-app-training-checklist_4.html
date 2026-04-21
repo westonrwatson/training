@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Halda App Training Checklist</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0D0D0D;
+      --surface: #161616;
+      --surface2: #1e1e1e;
+      --border: #2a2a2a;
+      --accent: #4FABFF;
+      --purple: #907FFF;
+      --yellow: #FFDF44;
+      --coral: #FE8576;
+      --green: #4BFFB5;
+      --text: #FFFFFF;
+      --text-muted: #888888;
+      --radius: 12px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', Lato, Helvetica, sans-serif;
+      min-height: 100vh;
+      padding: 40px 20px 100px;
+    }
+
+    .container { max-width: 720px; margin: 0 auto; }
+
+    /* ── Header ── */
+    .header { margin-bottom: 48px; }
+    .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+    .header h1 { font-size: 32px; font-weight: 800; line-height: 1.2; }
+    .header-sub { margin-top: 10px; font-size: 14px; color: var(--text-muted); }
+
+    /* ── Progress ── */
+    .progress-wrap { margin-top: 24px; display: flex; align-items: center; gap: 14px; }
+    .progress-bar { flex: 1; height: 6px; background: var(--border); border-radius: 999px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width .4s ease; width: 0%; }
+    .progress-label { font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap; min-width: 60px; text-align: right; }
+
+    /* ── Section card ── */
+    .section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; overflow: visible; transition: border-color .2s; }
+    .section:hover { border-color: #3a3a3a; }
+    .section-header { display: flex; align-items: center; gap: 14px; padding: 18px 20px; cursor: pointer; user-select: none; border-radius: var(--radius) var(--radius) 0 0; }
+    .section-header:hover { background: var(--surface2); }
+    .section-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .dot-blue   { background: var(--accent); }
+    .dot-purple { background: var(--purple); }
+    .dot-yellow { background: var(--yellow); }
+    .dot-coral  { background: var(--coral); }
+    .section-title { flex: 1; font-size: 15px; font-weight: 700; }
+    .section-count { font-size: 11px; font-weight: 600; color: var(--text-muted); background: var(--bg); padding: 3px 9px; border-radius: 999px; }
+    .section-chevron { font-size: 10px; color: var(--text-muted); transition: transform .2s; }
+    .section.open .section-chevron { transform: rotate(180deg); }
+    .btn-del-section { background: none; border: none; cursor: pointer; font-size: 12px; color: #444; padding: 4px 6px; border-radius: 5px; line-height: 1; transition: all .15s; flex-shrink: 0; font-family: inherit; font-weight: 600; }
+    .btn-del-section:hover { color: var(--coral); background: rgba(254,133,118,.1); }
+    .section-body { display: none; overflow: hidden; border-radius: 0 0 var(--radius) var(--radius); }
+    .section.open .section-body { display: block; }
+
+    /* ── Task row ── */
+    .item-main { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--border); transition: background .15s; position: relative; }
+    .item-main:hover { background: var(--surface2); }
+    .item-main:hover .row-actions { opacity: 1; }
+
+    /* ── Sub list ── */
+    .sub-list { padding: 0 20px 4px 52px; }
+    .sub-group-label { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #555; padding: 12px 0 4px; }
+    .sub-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #1c1c1c; position: relative; }
+    .sub-item:last-child { border-bottom: none; }
+    .sub-item:hover .row-actions { opacity: 1; }
+
+    /* ── Checkboxes ── */
+    .check-wrap { position: relative; width: 18px; height: 18px; flex-shrink: 0; }
+    .check-wrap input[type="checkbox"] { position: absolute; opacity: 0; width: 0; height: 0; }
+    .check-box { display: block; width: 18px; height: 18px; border: 2px solid #444; border-radius: 5px; background: transparent; cursor: pointer; transition: all .15s; position: relative; }
+    .check-box::after { content: ''; position: absolute; display: none; left: 4px; top: 1px; width: 6px; height: 10px; border: 2px solid #000; border-top: none; border-left: none; transform: rotate(45deg); }
+    .check-wrap input:checked + .check-box { background: var(--accent); border-color: var(--accent); }
+    .check-wrap input:checked + .check-box::after { display: block; }
+    .sub-item .check-box { width: 16px; height: 16px; border-radius: 4px; }
+    .sub-item .check-box::after { left: 3px; top: 0; width: 5px; height: 9px; }
+    .sub-item .check-wrap { width: 16px; height: 16px; }
+
+    /* ── Labels ── */
+    .item-label { font-size: 14px; font-weight: 600; color: #e8e8e8; flex: 1; line-height: 1.4; min-width: 0; }
+    .item-label.checked { text-decoration: line-through; color: var(--text-muted); }
+    .sub-label { font-size: 13px; font-weight: 500; color: #b8b8b8; flex: 1; line-height: 1.4; min-width: 0; }
+    .sub-label.checked { text-decoration: line-through; color: #555; }
+    .item-label a, .sub-label a { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(79,171,255,.3); transition: border-color .15s; }
+    .item-label a:hover, .sub-label a:hover { border-color: var(--accent); }
+    .has-link-icon::after { content: '↗'; font-size: 10px; color: var(--accent); margin-left: 4px; opacity: .6; }
+
+    /* ── Row actions (hover) ── */
+    .row-actions { display: flex; align-items: center; gap: 2px; opacity: 0; transition: opacity .15s; flex-shrink: 0; }
+    .btn-icon {
+      background: none; border: none; cursor: pointer;
+      font-size: 11px; padding: 3px 7px; border-radius: 5px;
+      color: var(--text-muted); transition: all .15s; line-height: 1;
+      font-family: inherit; font-weight: 700; white-space: nowrap;
+    }
+    .btn-icon:hover { background: #252525; color: #ccc; }
+    .btn-icon.del:hover    { color: var(--coral); background: rgba(254,133,118,.08); }
+    .btn-icon.lnk:hover    { color: var(--accent); background: rgba(79,171,255,.08); }
+    .btn-icon.edt:hover    { color: var(--yellow); background: rgba(255,223,68,.08); }
+    .btn-icon.addsub:hover { color: var(--green); background: rgba(75,255,181,.08); }
+
+    /* ── Inline edit input (replaces label) ── */
+    .inline-edit-input {
+      flex: 1; background: #111; border: 1px solid var(--yellow);
+      border-radius: 6px; color: #fff; font-family: inherit;
+      font-size: 14px; font-weight: 600; padding: 5px 10px; outline: none;
+    }
+    .sub-item .inline-edit-input { font-size: 13px; font-weight: 500; }
+
+    /* ── Link popover (appears below the row) ── */
+    .link-popover {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 20px 10px 52px;
+      background: rgba(79,171,255,.04);
+      border-top: 1px solid rgba(79,171,255,.15);
+      animation: slideDown .15s ease;
+    }
+    .link-popover.sub { padding-left: 68px; }
+    @keyframes slideDown { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+
+    .link-url-input {
+      flex: 1; background: var(--bg); border: 1px solid rgba(79,171,255,.4);
+      border-radius: 6px; color: #fff; font-family: inherit;
+      font-size: 12px; padding: 7px 10px; outline: none; transition: border-color .15s;
+    }
+    .link-url-input:focus { border-color: var(--accent); }
+    .link-url-input::placeholder { color: #444; }
+
+    .btn-link-save {
+      background: rgba(79,171,255,.15); border: 1px solid rgba(79,171,255,.3);
+      border-radius: 6px; color: var(--accent); font-family: inherit;
+      font-size: 11px; font-weight: 700; padding: 7px 12px; cursor: pointer; transition: all .15s; white-space: nowrap;
+    }
+    .btn-link-save:hover { background: rgba(79,171,255,.25); }
+    .btn-link-clear {
+      background: none; border: 1px solid #333; border-radius: 6px;
+      color: var(--coral); font-family: inherit; font-size: 11px; font-weight: 700;
+      padding: 7px 10px; cursor: pointer; transition: all .15s; white-space: nowrap;
+    }
+    .btn-link-clear:hover { border-color: var(--coral); background: rgba(254,133,118,.08); }
+    .btn-popover-cancel {
+      background: none; border: none; color: #555; font-family: inherit;
+      font-size: 11px; padding: 7px 6px; cursor: pointer; border-radius: 5px; transition: all .15s;
+    }
+    .btn-popover-cancel:hover { color: #999; }
+
+    /* ── Add task row ── */
+    .add-task-row { display: flex; align-items: center; gap: 10px; padding: 10px 20px; border-top: 1px solid var(--border); }
+    .add-task-input { flex: 1; background: var(--bg); border: 1px solid #2a2a2a; border-radius: 8px; color: #fff; font-family: inherit; font-size: 13px; padding: 8px 12px; outline: none; transition: border-color .15s; }
+    .add-task-input:focus { border-color: var(--accent); }
+    .add-task-input::placeholder { color: #444; }
+    .btn-add { background: rgba(79,171,255,.12); border: 1px solid rgba(79,171,255,.25); border-radius: 8px; color: var(--accent); font-family: inherit; font-size: 12px; font-weight: 700; padding: 8px 14px; cursor: pointer; white-space: nowrap; transition: all .15s; }
+    .btn-add:hover { background: rgba(79,171,255,.22); }
+
+    /* ── Add subtask inline ── */
+    .add-sub-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+    .add-sub-input { flex: 1; background: var(--bg); border: 1px solid #333; border-radius: 6px; color: #fff; font-family: inherit; font-size: 12px; padding: 6px 10px; outline: none; transition: border-color .15s; }
+    .add-sub-input:focus { border-color: var(--accent); }
+    .add-sub-input::placeholder { color: #555; }
+    .btn-add-sm { background: rgba(79,171,255,.12); border: 1px solid rgba(79,171,255,.2); border-radius: 6px; color: var(--accent); font-family: inherit; font-size: 11px; font-weight: 700; padding: 6px 10px; cursor: pointer; white-space: nowrap; transition: all .15s; }
+    .btn-add-sm:hover { background: rgba(79,171,255,.22); }
+    .btn-cancel-sm { background: none; border: none; color: var(--text-muted); font-family: inherit; font-size: 11px; padding: 6px; cursor: pointer; border-radius: 6px; transition: all .15s; }
+    .btn-cancel-sm:hover { color: var(--coral); }
+
+    /* ── Add new category ── */
+    .add-category-wrap { margin-top: 8px; }
+    .btn-add-category { width: 100%; background: var(--surface); border: 1px dashed #333; border-radius: var(--radius); color: var(--text-muted); font-family: inherit; font-size: 13px; font-weight: 600; padding: 16px 20px; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 10px; transition: all .2s; }
+    .btn-add-category:hover { border-color: var(--accent); color: var(--accent); background: rgba(79,171,255,.04); }
+    .btn-add-category .plus { font-size: 20px; font-weight: 300; line-height: 1; }
+    .add-category-form { background: var(--surface); border: 1px solid var(--accent); border-radius: var(--radius); padding: 20px; display: none; margin-top: 8px; }
+    .add-category-form.visible { display: block; }
+    .form-label { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; display: block; }
+    .add-cat-input { width: 100%; background: var(--bg); border: 1px solid #333; border-radius: 8px; color: #fff; font-family: inherit; font-size: 14px; font-weight: 600; padding: 10px 14px; outline: none; transition: border-color .15s; margin-bottom: 16px; }
+    .add-cat-input:focus { border-color: var(--accent); }
+    .add-cat-input::placeholder { color: #444; }
+    .color-picker { display: flex; gap: 10px; margin-bottom: 18px; }
+    .color-opt { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: all .15s; }
+    .color-opt.selected { border-color: #fff; transform: scale(1.15); }
+    .add-cat-actions { display: flex; gap: 10px; }
+    .btn-create { background: var(--accent); border: none; border-radius: 8px; color: #000; font-family: inherit; font-size: 13px; font-weight: 700; padding: 9px 18px; cursor: pointer; transition: opacity .15s; }
+    .btn-create:hover { opacity: .85; }
+    .btn-cancel-cat { background: none; border: 1px solid #333; border-radius: 8px; color: var(--text-muted); font-family: inherit; font-size: 13px; padding: 9px 18px; cursor: pointer; transition: all .15s; }
+    .btn-cancel-cat:hover { border-color: #555; color: #fff; }
+
+    /* ── Mode toggle ── */
+    .mode-toggle-wrap {
+      display: flex; justify-content: flex-end;
+      margin-bottom: 12px;
+    }
+
+    .mode-toggle {
+      position: relative; width: 72px; height: 32px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 999px; cursor: pointer;
+      transition: background .25s, border-color .25s; flex-shrink: 0;
+    }
+    .mode-toggle.edit-on { background: rgba(79,171,255,.12); border-color: var(--accent); }
+
+    .toggle-symbol {
+      position: absolute; top: 0; width: 36px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; line-height: 1; z-index: 1;
+      transition: opacity .2s, color .2s; pointer-events: none;
+    }
+    .toggle-symbol.check { left: 0; opacity: 1; color: #fff; }
+    .toggle-symbol.edit  { left: 36px; opacity: 1; color: var(--text-muted); }
+    .mode-toggle.edit-on .toggle-symbol.check { color: var(--text-muted); }
+    .mode-toggle.edit-on .toggle-symbol.edit  { color: #fff; }
+
+    .mode-thumb {
+      position: absolute; top: 4px; left: 6px;
+      width: 24px; height: 24px; border-radius: 50%;
+      background: var(--text-muted);
+      transition: transform .25s cubic-bezier(.4,0,.2,1), background .25s;
+      z-index: 0;
+    }
+    .mode-toggle.edit-on .mode-thumb { transform: translateX(36px); background: var(--accent); }
+
+    /* ── Mode visibility ── */
+    body:not(.edit-mode) .row-actions       { display: none !important; }
+    body:not(.edit-mode) .add-task-row      { display: none !important; }
+    body:not(.edit-mode) .add-category-wrap { display: none !important; }
+    body:not(.edit-mode) .btn-del-section   { display: none !important; }
+
+    /* Edit mode: row actions on hover only */
+    body.edit-mode .item-main:hover .row-actions { opacity: 1; }
+    body.edit-mode .sub-item:hover  .row-actions { opacity: 1; }
+
+    body.edit-mode .section-title { cursor: text; }
+    body.edit-mode .section-title:hover { color: var(--accent); }
+    .section-title-input {
+      flex: 1; background: transparent; border: none;
+      border-bottom: 1px solid var(--accent); border-radius: 0;
+      color: #fff; font-family: inherit; font-size: 15px; font-weight: 700;
+      padding: 2px 4px; outline: none;
+    }
+
+    /* ── Legend ── */
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 14px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
+    .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header" style="position:relative">
+    <div class="eyebrow">Training Guide</div>
+    <h1>Halda App Training</h1>
+
+    <div class="progress-wrap">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-label" id="progressLabel">0 / 0</div>
+    </div>
+  </div>
+
+  <div class="mode-toggle-wrap">
+    <button class="mode-toggle" id="modeToggle" onclick="toggleMode()" aria-label="Toggle mode">
+      <span class="mode-thumb"></span>
+      <span class="toggle-symbol check">✓</span>
+      <span class="toggle-symbol edit">✎</span>
+    </button>
+  </div>
+
+  <div id="sections-wrap"></div>
+
+  <div class="add-category-wrap">
+    <button class="btn-add-category" id="showCatFormBtn" onclick="showCatForm()">
+      <span class="plus">+</span> Add New Category
+    </button>
+    <div class="add-category-form" id="catForm">
+      <label class="form-label">Category Name</label>
+      <input class="add-cat-input" id="catNameInput" placeholder="e.g. Reporting & Analytics" onkeydown="if(event.key==='Enter') createCategory()" />
+      <label class="form-label">Accent Color</label>
+      <div class="color-picker" id="colorPicker"></div>
+      <div class="add-cat-actions">
+        <button class="btn-create" onclick="createCategory()">Create Category</button>
+        <button class="btn-cancel-cat" onclick="hideCatForm()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── Config ──────────────────────────────────────────────────────────────────
+// After deploying your Apps Script, paste the web app URL here:
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby1GAkpcZIAIbVBH5uhfVq2-9AZ0gCQ0HYUsrbEGHFIMQtobZ87OonAK_NhCvGPWZO_cQ/exec';
+
+const DOTS = ['dot-blue','dot-purple','dot-yellow','dot-coral'];
+const DOT_COLORS = { 'dot-blue':'#4FABFF','dot-purple':'#907FFF','dot-yellow':'#FFDF44','dot-coral':'#FE8576' };
+let selectedColor = 'dot-blue';
+let sectionCounter = 99;
+const openState = {};
+
+// data is built from sheet rows
+let data = [];
+
+// ─── Sheet API ───────────────────────────────────────────────────────────────
+function apiGet() {
+  // JSONP — bypasses CORS entirely, works from file://, localhost, and GitHub Pages
+  return new Promise((resolve, reject) => {
+    const cbName = '__jscb_' + Date.now();
+    const script  = document.createElement('script');
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('Request timed out'));
+    }, 10000);
+
+    window[cbName] = (data) => { cleanup(); resolve(data); };
+    script.onerror = () => { cleanup(); reject(new Error('Script failed to load — check the Apps Script URL and deployment')); };
+    script.src = APPS_SCRIPT_URL + '?callback=' + cbName;
+    document.head.appendChild(script);
+
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[cbName];
+      script.remove();
+    }
+  });
+}
+
+async function apiPost(payload) {
+  // no-cors: browser won't enforce CORS preflight — write fires and succeeds silently
+  fetch(APPS_SCRIPT_URL, {
+    method:  'POST',
+    mode:    'no-cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body:    JSON.stringify(payload),
+  });
+}
+
+// ─── Build data[] from flat sheet rows ───────────────────────────────────────
+function buildDataFromRows(rows) {
+  const sections = [];
+  const secMap   = {};
+
+  rows.forEach(row => {
+    const catKey = row.category + '||' + row.dot;
+    if (!secMap[catKey]) {
+      const sec = { id: 'sec-' + sections.length, dot: row.dot, title: row.category, items: [] };
+      secMap[catKey] = sec;
+      sections.push(sec);
+    }
+    const sec = secMap[catKey];
+
+    if (!row.subtask) {
+      // Top-level task
+      sec.items.push({ text: row.task, url: row.url || undefined, subs: [], rowId: row.rowId, checked: row.checked });
+    } else {
+      // Subtask — find or create the parent task
+      let parent = sec.items.find(i => i.text === row.task);
+      if (!parent) {
+        parent = { text: row.task, subs: [], rowId: row.rowId + '_task' };
+        sec.items.push(parent);
+      }
+      parent.subs.push({
+        text: row.subtask,
+        url: row.url || undefined,
+        groupBefore: row.groupLabel || undefined,
+        rowId: row.rowId,
+        checked: row.checked,
+      });
+    }
+  });
+
+  return sections;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function renderLabel(item) {
+  const esc = item.text.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  if (item.url) return `<a href="${item.url}" target="_blank">${esc}</a>`;
+  return esc;
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+function renderAll() {
+  const wrap = document.getElementById('sections-wrap');
+  wrap.innerHTML = '';
+  data.forEach(sec => {
+    if (!(sec.id in openState)) openState[sec.id] = true;
+    wrap.appendChild(buildSection(sec));
+  });
+  updateProgress();
+}
+
+function buildSection(sec) {
+  const div = document.createElement('div');
+  div.className = 'section' + (openState[sec.id] ? ' open' : '');
+  div.id = sec.id;
+
+  // Header
+  const hdr = document.createElement('div');
+  hdr.className = 'section-header';
+  hdr.onclick = () => { openState[sec.id] = !openState[sec.id]; div.classList.toggle('open'); };
+  hdr.innerHTML = `
+    <span class="section-dot ${sec.dot}"></span>
+    <span class="section-title" id="sectitle-${sec.id}" onclick="startSectionEdit(event,'${sec.id}')" title="Click to rename">${sec.title}</span>
+    <span class="section-count" id="count-${sec.id}">0%</span>
+    <span class="section-chevron">▼</span>
+    <button class="btn-del-section" title="Delete category" onclick="deleteSection(event,'${sec.id}')">✕ delete</button>`;
+  div.appendChild(hdr);
+
+  const body = document.createElement('div');
+  body.className = 'section-body';
+
+  sec.items.forEach((item, iIdx) => {
+    body.appendChild(buildTaskRow(sec, item, iIdx));
+    if (item.subs && item.subs.length) body.appendChild(buildSubList(sec, item, iIdx));
+  });
+
+  // Add task
+  const addRow = document.createElement('div');
+  addRow.className = 'add-task-row';
+  addRow.innerHTML = `
+    <input class="add-task-input" id="taskInput-${sec.id}" placeholder="+ Add a task…"
+           onkeydown="if(event.key==='Enter') addTask('${sec.id}')" />
+    <button class="btn-add" onclick="addTask('${sec.id}')">Add Task</button>`;
+  body.appendChild(addRow);
+  div.appendChild(body);
+  return div;
+}
+
+function buildTaskRow(sec, item, iIdx) {
+  const row = document.createElement('div');
+  row.className = 'item-main';
+  row.id = `task-${sec.id}-${iIdx}`;
+  const cbId = `cb-${sec.id}-${iIdx}`;
+  const hasLink = !!item.url;
+  const rowId = item.rowId || '';
+
+  row.innerHTML = `
+    <label class="check-wrap">
+      <input type="checkbox" id="${cbId}" data-rowid="${rowId}" onchange="onCheck(this)" ${item.checked ? 'checked' : ''}>
+      <span class="check-box"></span>
+    </label>
+    <span class="item-label${hasLink ? ' has-link-icon' : ''}" id="lbl-${cbId}">${renderLabel(item)}</span>
+    <div class="row-actions">
+      <button class="btn-icon edt"    onclick="startEdit(this,'${sec.id}',${iIdx},null)"              title="Edit text">✎ edit</button>
+      <button class="btn-icon lnk"    onclick="toggleLinkPopover(this,'${sec.id}',${iIdx},null)"      title="Add/edit link">🔗 link</button>
+      <button class="btn-icon addsub" onclick="toggleSubInput('${sec.id}',${iIdx})"                  title="Add subtask">＋ subtask</button>
+      <button class="btn-icon del"    onclick="deleteTask('${sec.id}',${iIdx})"                       title="Delete task">✕ delete</button>
+    </div>`;
+  return row;
+}
+
+function buildSubList(sec, item, iIdx) {
+  const subList = document.createElement('div');
+  subList.className = 'sub-list';
+  subList.id = `sublist-${sec.id}-${iIdx}`;
+  item.subs.forEach((sub, sIdx) => {
+    if (sub.groupBefore) {
+      const gl = document.createElement('div');
+      gl.className = 'sub-group-label';
+      gl.textContent = sub.groupBefore;
+      subList.appendChild(gl);
+    }
+    subList.appendChild(buildSubRow(sec, iIdx, sub, sIdx));
+  });
+  return subList;
+}
+
+function buildSubRow(sec, iIdx, sub, sIdx) {
+  const row = document.createElement('div');
+  row.className = 'sub-item';
+  row.id = `sub-${sec.id}-${iIdx}-${sIdx}`;
+  const cbId = `cb-${sec.id}-${iIdx}-${sIdx}`;
+  const hasLink = !!sub.url;
+  const rowId = sub.rowId || '';
+
+  row.innerHTML = `
+    <label class="check-wrap">
+      <input type="checkbox" id="${cbId}" data-rowid="${rowId}" onchange="onCheck(this)" ${sub.checked ? 'checked' : ''}>
+      <span class="check-box"></span>
+    </label>
+    <span class="sub-label${hasLink ? ' has-link-icon' : ''}" id="lbl-${cbId}">${renderLabel(sub)}</span>
+    <div class="row-actions">
+      <button class="btn-icon edt" onclick="startEdit(this,'${sec.id}',${iIdx},${sIdx})"         title="Edit text">✎ edit</button>
+      <button class="btn-icon lnk" onclick="toggleLinkPopover(this,'${sec.id}',${iIdx},${sIdx})" title="Add/edit link">🔗 link</button>
+      <button class="btn-icon del" onclick="deleteSubtask('${sec.id}',${iIdx},${sIdx})"          title="Delete subtask">✕ delete</button>
+    </div>`;
+  return row;
+}
+
+// ─── Inline category name EDIT ───────────────────────────────────────────────
+function startSectionEdit(e, secId) {
+  if (!editMode) return;
+  e.stopPropagation();
+  const titleEl = document.getElementById('sectitle-' + secId);
+  if (!titleEl || titleEl.querySelector('input')) return;
+  const sec = data.find(s => s.id === secId);
+  if (!sec) return;
+
+  const input = document.createElement('input');
+  input.className = 'section-title-input';
+  input.value = sec.title;
+
+  const save = () => {
+    const val = input.value.trim();
+    if (val) sec.title = val;
+    renderAll();
+  };
+  input.onkeydown = e => {
+    if (e.key === 'Enter')  { e.preventDefault(); save(); }
+    if (e.key === 'Escape') renderAll();
+  };
+  input.onclick = e => e.stopPropagation();
+  input.onblur = save;
+
+  titleEl.textContent = '';
+  titleEl.appendChild(input);
+  input.focus();
+  input.select();
+}
+
+// ─── Inline EDIT ─────────────────────────────────────────────────────────────
+function startEdit(btn, secId, iIdx, sIdx) {
+  const sec = data.find(s => s.id === secId);
+  if (!sec) return;
+  const item = sIdx === null ? sec.items[iIdx] : sec.items[iIdx].subs[sIdx];
+  const cbId = sIdx === null ? `cb-${secId}-${iIdx}` : `cb-${secId}-${iIdx}-${sIdx}`;
+  const lbl = document.getElementById('lbl-' + cbId);
+  if (!lbl) return;
+
+  // Replace label with input
+  const input = document.createElement('input');
+  input.className = 'inline-edit-input';
+  input.value = item.text;
+  input.style.flex = '1';
+
+  const save = () => {
+    const val = input.value.trim();
+    if (val) {
+      const rowId = item.rowId;
+      const field = sIdx === null ? 'task' : 'subtask';
+      if (rowId) apiPost({ action: 'update_row', rowId, fields: { [field]: val } });
+      item.text = val;
+    }
+    renderAll();
+  };
+
+  input.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); save(); }
+    if (e.key === 'Escape') renderAll();
+  };
+  input.onblur = save;
+
+  lbl.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+// ─── LINK popover ─────────────────────────────────────────────────────────────
+function toggleLinkPopover(btn, secId, iIdx, sIdx) {
+  const isSub = sIdx !== null;
+  // Find the row element
+  const rowEl = isSub
+    ? document.getElementById(`sub-${secId}-${iIdx}-${sIdx}`)
+    : document.getElementById(`task-${secId}-${iIdx}`);
+  if (!rowEl) return;
+
+  // Check if popover already open for this row → close it
+  const existing = rowEl.nextElementSibling;
+  if (existing && existing.classList.contains('link-popover') && existing.dataset.for === `${secId}-${iIdx}-${sIdx}`) {
+    existing.remove(); return;
+  }
+
+  // Close any other open popovers in the page
+  document.querySelectorAll('.link-popover').forEach(p => p.remove());
+
+  // Get current URL
+  const sec = data.find(s => s.id === secId);
+  const item = isSub ? sec.items[iIdx].subs[sIdx] : sec.items[iIdx];
+  const currentUrl = item.url || '';
+
+  const popover = document.createElement('div');
+  popover.className = 'link-popover' + (isSub ? ' sub' : '');
+  popover.dataset.for = `${secId}-${iIdx}-${sIdx}`;
+  const inputId = `urlInput-${secId}-${iIdx}-${sIdx}`;
+
+  popover.innerHTML = `
+    <input class="link-url-input" id="${inputId}" placeholder="https://…" value="${currentUrl}"
+           onkeydown="if(event.key==='Enter') saveLink('${secId}',${iIdx},${sIdx},'${inputId}'); if(event.key==='Escape') this.closest('.link-popover').remove()" />
+    <button class="btn-link-save"  onclick="saveLink('${secId}',${iIdx},${sIdx},'${inputId}')">Save Link</button>
+    ${currentUrl ? `<button class="btn-link-clear" onclick="clearLink('${secId}',${iIdx},${sIdx})">Remove</button>` : ''}
+    <button class="btn-popover-cancel" onclick="this.closest('.link-popover').remove()">✕</button>`;
+
+  rowEl.after(popover);
+  setTimeout(() => document.getElementById(inputId)?.focus(), 10);
+}
+
+function saveLink(secId, iIdx, sIdx, inputId) {
+  const val = document.getElementById(inputId)?.value.trim() || '';
+  const sec = data.find(s => s.id === secId);
+  if (!sec) return;
+  const item = sIdx === null ? sec.items[iIdx] : sec.items[iIdx].subs[sIdx];
+  item.url = val || undefined;
+  if (item.rowId) apiPost({ action: 'update_row', rowId: item.rowId, fields: { url: val } });
+  renderAll();
+}
+
+function clearLink(secId, iIdx, sIdx) {
+  const sec = data.find(s => s.id === secId);
+  if (!sec) return;
+  const item = sIdx === null ? sec.items[iIdx] : sec.items[iIdx].subs[sIdx];
+  if (item.rowId) apiPost({ action: 'update_row', rowId: item.rowId, fields: { url: '' } });
+  delete item.url;
+  renderAll();
+}
+
+// ─── Add subtask inline ───────────────────────────────────────────────────────
+function toggleSubInput(secId, iIdx) {
+  let subList = document.getElementById(`sublist-${secId}-${iIdx}`);
+  if (!subList) {
+    subList = document.createElement('div');
+    subList.className = 'sub-list';
+    subList.id = `sublist-${secId}-${iIdx}`;
+    document.getElementById(`task-${secId}-${iIdx}`).after(subList);
+  }
+  const existing = subList.querySelector('.add-sub-row');
+  if (existing) { existing.remove(); return; }
+
+  const formRow = document.createElement('div');
+  formRow.className = 'add-sub-row';
+  const inputId = `subInput-${secId}-${iIdx}`;
+  formRow.innerHTML = `
+    <input class="add-sub-input" id="${inputId}" placeholder="Subtask name…"
+           onkeydown="if(event.key==='Enter') commitSub('${secId}',${iIdx}); if(event.key==='Escape') this.closest('.add-sub-row').remove()" />
+    <button class="btn-add-sm" onclick="commitSub('${secId}',${iIdx})">Add</button>
+    <button class="btn-cancel-sm" onclick="this.closest('.add-sub-row').remove()">✕</button>`;
+  subList.appendChild(formRow);
+  setTimeout(() => document.getElementById(inputId)?.focus(), 10);
+}
+
+function commitSub(secId, iIdx) {
+  const input = document.getElementById(`subInput-${secId}-${iIdx}`);
+  const text = input?.value.trim();
+  if (!text) return;
+  const sec = data.find(s => s.id === secId);
+  if (!sec) return;
+  if (!sec.items[iIdx].subs) sec.items[iIdx].subs = [];
+  const parentTask = sec.items[iIdx].text;
+  apiPost({ action: 'add_row', category: sec.title, dot: sec.dot, task: parentTask, subtask: text });
+  sec.items[iIdx].subs.push({ text, rowId: 'pending-' + Date.now() });
+  renderAll();
+}
+
+// ─── Add task ─────────────────────────────────────────────────────────────────
+function addTask(secId) {
+  const input = document.getElementById(`taskInput-${secId}`);
+  const text = input?.value.trim();
+  if (!text) return;
+  const sec = data.find(s => s.id === secId);
+  if (!sec) return;
+  apiPost({ action: 'add_row', category: sec.title, dot: sec.dot, task: text });
+  sec.items.push({ text, subs: [], rowId: 'pending-' + Date.now() });
+  renderAll();
+}
+
+// ─── Delete ───────────────────────────────────────────────────────────────────
+function deleteSection(e, secId) {
+  e.stopPropagation();
+  if (!confirm('Delete this category and all its tasks?')) return;
+  const sec = data.find(s => s.id === secId);
+  if (sec) {
+    sec.items.forEach(item => {
+      if (item.rowId && !item.rowId.startsWith('pending')) apiPost({ action: 'delete_row', rowId: item.rowId });
+      (item.subs || []).forEach(sub => {
+        if (sub.rowId && !sub.rowId.startsWith('pending')) apiPost({ action: 'delete_row', rowId: sub.rowId });
+      });
+    });
+  }
+  const idx = data.findIndex(s => s.id === secId);
+  if (idx > -1) { data.splice(idx, 1); delete openState[secId]; }
+  renderAll();
+}
+
+function deleteTask(secId, iIdx) {
+  const sec = data.find(s => s.id === secId);
+  if (!sec) return;
+  const item = sec.items[iIdx];
+  if (item?.rowId && !item.rowId.startsWith('pending')) apiPost({ action: 'delete_row', rowId: item.rowId });
+  (item?.subs || []).forEach(sub => {
+    if (sub.rowId && !sub.rowId.startsWith('pending')) apiPost({ action: 'delete_row', rowId: sub.rowId });
+  });
+  sec.items.splice(iIdx, 1);
+  renderAll();
+}
+
+function deleteSubtask(secId, iIdx, sIdx) {
+  const sec = data.find(s => s.id === secId);
+  if (!sec) return;
+  const sub = sec.items[iIdx].subs[sIdx];
+  if (sub?.rowId && !sub.rowId.startsWith('pending')) apiPost({ action: 'delete_row', rowId: sub.rowId });
+  sec.items[iIdx].subs.splice(sIdx, 1);
+  renderAll();
+}
+
+// ─── Category form ────────────────────────────────────────────────────────────
+function showCatForm() {
+  document.getElementById('showCatFormBtn').style.display = 'none';
+  document.getElementById('catForm').classList.add('visible');
+  setTimeout(() => document.getElementById('catNameInput').focus(), 50);
+}
+function hideCatForm() {
+  document.getElementById('showCatFormBtn').style.display = '';
+  document.getElementById('catForm').classList.remove('visible');
+  document.getElementById('catNameInput').value = '';
+}
+function createCategory() {
+  const name = document.getElementById('catNameInput').value.trim();
+  if (!name) return;
+  const id = 'sec-' + (++sectionCounter);
+  // Add a placeholder row so the category exists in the sheet
+  apiPost({ action: 'add_row', category: name, dot: selectedColor, task: name + ' Overview' });
+  data.push({ id, dot: selectedColor, title: name, items: [{ text: name + ' Overview', subs: [], rowId: 'pending-' + Date.now() }] });
+  openState[id] = true;
+  hideCatForm();
+  renderAll();
+  setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior:'smooth', block:'center' }), 80);
+}
+
+// ─── Color picker ─────────────────────────────────────────────────────────────
+function buildColorPicker() {
+  const picker = document.getElementById('colorPicker');
+  DOTS.forEach(dot => {
+    const btn = document.createElement('div');
+    btn.className = 'color-opt' + (dot === selectedColor ? ' selected' : '');
+    btn.style.background = DOT_COLORS[dot];
+    btn.title = dot.replace('dot-','');
+    btn.onclick = () => {
+      selectedColor = dot;
+      document.querySelectorAll('.color-opt').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    };
+    picker.appendChild(btn);
+  });
+}
+
+// ─── Checkbox ─────────────────────────────────────────────────────────────────
+function onCheck(cb) {
+  const lbl = document.getElementById('lbl-' + cb.id);
+  if (lbl) lbl.classList.toggle('checked', cb.checked);
+  // Find the rowId from the checkbox's data attribute and save to sheet
+  const rowId = cb.dataset.rowid;
+  if (rowId) apiPost({ action: 'set_checked', rowId, checked: cb.checked });
+  updateProgress();
+}
+
+// ─── Mode toggle ─────────────────────────────────────────────────────────────
+let editMode = false;
+function toggleMode() {
+  editMode = !editMode;
+  document.body.classList.toggle('edit-mode', editMode);
+  document.getElementById('modeToggle').classList.toggle('edit-on', editMode);
+}
+
+// ─── Confetti ─────────────────────────────────────────────────────────────────
+const completedSections = new Set();
+
+function launchConfetti() {
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999';
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const COLORS = ['#4FABFF','#907FFF','#FFDF44','#FE8576','#4BFFB5','#ffffff'];
+  const pieces = Array.from({ length: 140 }, () => ({
+    x: Math.random() * canvas.width,
+    y: -10 - Math.random() * 200,
+    w: 7 + Math.random() * 7,
+    h: 4 + Math.random() * 5,
+    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    rot: Math.random() * Math.PI * 2,
+    rotV: (Math.random() - .5) * .18,
+    vx: (Math.random() - .5) * 3.5,
+    vy: 2.5 + Math.random() * 3.5,
+    opacity: 1,
+  }));
+
+  let frame;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let alive = false;
+    pieces.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.rot += p.rotV;
+      if (p.y > canvas.height * .75) p.opacity -= .025;
+      if (p.opacity > 0) alive = true;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.opacity);
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, p.w, p.h, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+    if (alive) { frame = requestAnimationFrame(draw); }
+    else { cancelAnimationFrame(frame); canvas.remove(); }
+  }
+  draw();
+}
+
+// ─── Progress ─────────────────────────────────────────────────────────────────
+function updateProgress() {
+  document.querySelectorAll('.section').forEach(sec => {
+    const boxes = sec.querySelectorAll('input[type="checkbox"]');
+    const checked = [...boxes].filter(b => b.checked).length;
+    const pct = boxes.length ? Math.round(checked / boxes.length * 100) : 0;
+    const el = sec.querySelector('.section-count');
+    if (el) el.textContent = pct + '%';
+
+    if (pct === 100 && boxes.length > 0 && !completedSections.has(sec.id)) {
+      completedSections.add(sec.id);
+      launchConfetti();
+    } else if (pct < 100) {
+      completedSections.delete(sec.id);
+    }
+  });
+  const all = [...document.querySelectorAll('input[type="checkbox"]')];
+  const checked = all.filter(b => b.checked).length;
+  document.getElementById('progressFill').style.width = (all.length ? checked / all.length * 100 : 0) + '%';
+  document.getElementById('progressLabel').textContent = checked + ' / ' + all.length;
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+buildColorPicker();
+
+async function init() {
+  const wrap = document.getElementById('sections-wrap');
+  wrap.innerHTML = '<div style="padding:40px 0;text-align:center;color:#555;font-size:14px">Loading from sheet…</div>';
+
+  try {
+    const { ok, data: rows, error } = await apiGet();
+    if (!ok) throw new Error(error);
+    data = buildDataFromRows(rows);
+  } catch(e) {
+    wrap.innerHTML = `<div style="padding:40px 20px;text-align:center;color:#FE8576;font-size:13px">
+      ⚠️ Could not load sheet data.<br><br>
+      Make sure you've set <code>APPS_SCRIPT_URL</code> in the HTML and the script is deployed as a web app.
+      <br><br><small style="color:#555">${e.message}</small>
+    </div>`;
+    return;
+  }
+
+  renderAll();
+}
+
+init();
+</script>
+</body>
+</html>

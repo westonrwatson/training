@@ -4,7 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Halda App Training Checklist</title>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="dns-prefetch" href="https://script.google.com" />
+  <!-- Non-blocking font CSS: first paint uses system stack; Plus Jakarta loads shortly after -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" /></noscript>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -306,6 +311,25 @@ const openState = {};
 
 // data is built from sheet rows
 let data = [];
+
+const SHEET_CACHE_KEY = 'halda-training-sheet-rows-v1';
+
+function readCachedRows() {
+  try {
+    const raw = localStorage.getItem(SHEET_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed.rows) ? parsed.rows : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeCachedRows(rows) {
+  try {
+    localStorage.setItem(SHEET_CACHE_KEY, JSON.stringify({ rows }));
+  } catch (_) {}
+}
 
 // ─── Sheet API ───────────────────────────────────────────────────────────────
 function apiGet() {
@@ -843,22 +867,32 @@ buildColorPicker();
 
 async function init() {
   const wrap = document.getElementById('sections-wrap');
-  wrap.innerHTML = '<div style="padding:40px 0;text-align:center;color:#555;font-size:14px">Loading from sheet…</div>';
+  const cachedRows = readCachedRows();
+
+  if (cachedRows && cachedRows.length) {
+    data = buildDataFromRows(cachedRows);
+    renderAll();
+  } else {
+    wrap.innerHTML = '<div style="padding:40px 0;text-align:center;color:#555;font-size:14px">Loading from sheet…</div>';
+  }
 
   try {
     const { ok, data: rows, error } = await apiGet();
     if (!ok) throw new Error(error);
+    writeCachedRows(rows);
     data = buildDataFromRows(rows);
-  } catch(e) {
+    renderAll();
+  } catch (e) {
+    if (cachedRows && cachedRows.length) {
+      // Keep showing last good snapshot if the live request fails (offline / script cold start).
+      return;
+    }
     wrap.innerHTML = `<div style="padding:40px 20px;text-align:center;color:#FE8576;font-size:13px">
       ⚠️ Could not load sheet data.<br><br>
       Make sure you've set <code>APPS_SCRIPT_URL</code> in the HTML and the script is deployed as a web app.
       <br><br><small style="color:#555">${e.message}</small>
     </div>`;
-    return;
   }
-
-  renderAll();
 }
 
 init();

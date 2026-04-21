@@ -28,12 +28,26 @@
       --radius: 12px;
     }
 
+    html {
+      background-color: var(--bg);
+    }
+
     body {
-      background: var(--bg);
       color: var(--text);
       font-family: 'Plus Jakarta Sans', Lato, Helvetica, sans-serif;
       min-height: 100vh;
       padding: 40px 20px 100px;
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(ellipse 130% 85% at 50% -15%, rgba(79, 171, 255, 0.07), transparent 52%),
+        radial-gradient(ellipse 75% 60% at 108% 18%, rgba(144, 127, 255, 0.055), transparent 48%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.018) 0%, transparent 28%, transparent 72%, rgba(0, 0, 0, 0.22) 100%);
+      background-repeat: no-repeat;
+      background-attachment: fixed;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      body { background-attachment: scroll; }
     }
 
     .container { max-width: 720px; margin: 0 auto; }
@@ -44,11 +58,119 @@
     .header h1 { font-size: 32px; font-weight: 800; line-height: 1.2; }
     .header-sub { margin-top: 10px; font-size: 14px; color: var(--text-muted); }
 
-    /* ── Progress ── */
-    .progress-wrap { margin-top: 24px; display: flex; align-items: center; gap: 14px; }
-    .progress-bar { flex: 1; height: 6px; background: var(--border); border-radius: 999px; overflow: hidden; }
-    .progress-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width .4s ease; width: 0%; }
-    .progress-label { font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap; min-width: 60px; text-align: right; }
+    /* ── Progress (spectrum fill + notch track + leading spark) ── */
+    .progress-wrap {
+      margin-top: 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .progress-bar {
+      flex: 1;
+      height: 12px;
+      border-radius: 999px;
+      overflow: hidden;
+      background-color: #0f0f0f;
+      background-image: repeating-linear-gradient(
+        90deg,
+        transparent 0,
+        transparent 10px,
+        rgba(255,255,255,.045) 10px,
+        rgba(255,255,255,.045) 11px
+      );
+      box-shadow:
+        inset 0 2px 4px rgba(0,0,0,.65),
+        inset 0 -1px 0 rgba(255,255,255,.05),
+        0 0 0 1px rgba(79,171,255,.12);
+    }
+    .progress-fill {
+      position: relative;
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      overflow: hidden;
+      background: linear-gradient(
+        90deg,
+        var(--purple) 0%,
+        var(--accent) 42%,
+        #7fd4ff 78%,
+        #b8e8ff 100%
+      );
+      background-size: 160% 100%;
+      animation: progressHueShift 8s ease-in-out infinite alternate;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.28),
+        0 0 20px rgba(79,171,255,.25);
+      transition: width 0.55s cubic-bezier(0.34, 1.2, 0.64, 1);
+    }
+    .progress-fill::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      right: 0;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      transform: translate(40%, -50%);
+      background: radial-gradient(circle at 35% 35%, #fff 0%, #dff6ff 35%, transparent 70%);
+      box-shadow:
+        0 0 10px rgba(255,255,255,.85),
+        0 0 22px rgba(79,171,255,.9),
+        0 0 36px rgba(144,127,255,.45);
+      pointer-events: none;
+      opacity: 0.95;
+      animation: progressSpark 1.4s ease-in-out infinite alternate;
+    }
+    .progress-fill::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: repeating-linear-gradient(
+        118deg,
+        transparent 0,
+        transparent 7px,
+        rgba(255,255,255,.09) 7px,
+        rgba(255,255,255,.09) 9px
+      );
+      background-size: 22px 22px;
+      animation: progressWeave 2.8s linear infinite;
+      mix-blend-mode: overlay;
+      pointer-events: none;
+    }
+    @keyframes progressHueShift {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 100% 50%; }
+    }
+    @keyframes progressWeave {
+      from { background-position: 0 0; }
+      to { background-position: 22px 0; }
+    }
+    @keyframes progressSpark {
+      from { opacity: 0.75; transform: translate(40%, -50%) scale(0.92); }
+      to { opacity: 1; transform: translate(40%, -50%) scale(1.05); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .progress-fill {
+        animation: none;
+        background-size: 100% 100%;
+      }
+      .progress-fill::after { animation: none; }
+      .progress-fill::before { animation: none; }
+    }
+    .progress-label {
+      font-size: 13px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+      min-width: 52px;
+      text-align: right;
+      background: linear-gradient(115deg, var(--purple) 0%, var(--accent) 45%, #b8e8ff 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
 
     /* ── Section card ── */
     .section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; overflow: visible; transition: border-color .2s; }
@@ -200,39 +322,64 @@
     .btn-cancel-cat { background: none; border: 1px solid #333; border-radius: 8px; color: var(--text-muted); font-family: inherit; font-size: 13px; padding: 9px 18px; cursor: pointer; transition: all .15s; }
     .btn-cancel-cat:hover { border-color: #555; color: #fff; }
 
-    /* ── Mode toggle ── */
+    /* ── Mode toggle (fixed bottom — same real estate as former floating “Top”) ── */
     .mode-toggle-wrap {
-      display: flex; justify-content: flex-end;
-      margin-bottom: 12px;
+      position: fixed;
+      left: 50%;
+      bottom: max(24px, env(safe-area-inset-bottom, 0px));
+      transform: translateX(-50%);
+      z-index: 10025;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      pointer-events: auto;
     }
 
     .mode-toggle {
-      position: relative; width: 72px; height: 32px;
+      position: relative;
+      width: 100px;
+      height: 44px;
       background: var(--surface2); border: 1px solid var(--border);
       border-radius: 999px; cursor: pointer;
-      transition: background .25s, border-color .25s; flex-shrink: 0;
+      box-shadow: 0 6px 22px rgba(0,0,0,.38), 0 2px 6px rgba(0,0,0,.22);
+      transition: background .25s, border-color .25s, box-shadow .2s; flex-shrink: 0;
+    }
+    .mode-toggle:hover {
+      box-shadow: 0 8px 28px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.25);
     }
     .mode-toggle.edit-on { background: rgba(79,171,255,.12); border-color: var(--accent); }
 
     .toggle-symbol {
-      position: absolute; top: 0; width: 36px; height: 32px;
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 50px;
+      height: 44px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 14px; line-height: 1; z-index: 1;
+      font-size: 17px; line-height: 1; z-index: 1;
       transition: opacity .2s, color .2s; pointer-events: none;
     }
     .toggle-symbol.check { left: 0; opacity: 1; color: #fff; }
-    .toggle-symbol.edit  { left: 36px; opacity: 1; color: var(--text-muted); }
+    .toggle-symbol.edit  { left: 50px; opacity: 1; color: var(--text-muted); }
     .mode-toggle.edit-on .toggle-symbol.check { color: var(--text-muted); }
     .mode-toggle.edit-on .toggle-symbol.edit  { color: #fff; }
 
     .mode-thumb {
-      position: absolute; top: 4px; left: 6px;
-      width: 24px; height: 24px; border-radius: 50%;
+      position: absolute;
+      left: 9px;
+      top: 50%;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
       background: var(--text-muted);
+      transform: translateY(-50%);
       transition: transform .25s cubic-bezier(.4,0,.2,1), background .25s;
       z-index: 0;
     }
-    .mode-toggle.edit-on .mode-thumb { transform: translateX(36px); background: var(--accent); }
+    .mode-toggle.edit-on .mode-thumb {
+      transform: translate(50px, -50%);
+      background: var(--accent);
+    }
 
     /* ── Mode visibility ── */
     body:not(.edit-mode) .row-actions       { display: none !important; }
@@ -325,7 +472,7 @@
     /* ── Toasts ── */
     .toast-root {
       position: fixed;
-      bottom: 24px;
+      bottom: max(72px, calc(24px + env(safe-area-inset-bottom, 0px) + 48px));
       left: 50%;
       transform: translateX(-50%);
       z-index: 10002;
@@ -407,36 +554,32 @@
       line-height: 1.45;
     }
 
-    /* ── Back to top ── */
-    .back-to-top {
-      position: fixed;
-      left: 50%;
-      bottom: max(24px, env(safe-area-inset-bottom, 0px));
-      z-index: 10025;
-      padding: 10px 16px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--accent);
-      font-family: inherit;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      cursor: pointer;
-      box-shadow: 0 8px 28px rgba(0,0,0,.45);
-      opacity: 0;
-      visibility: hidden;
-      transform: translate(-50%, 10px);
-      transition: opacity .22s ease, transform .22s ease, visibility .22s ease, border-color .15s, background .15s;
+    /* ── Back to top (below add category in edit mode; plain text) ── */
+    .back-to-top-wrap {
+      display: flex;
+      justify-content: flex-start;
+      margin: 14px 0 8px;
+      padding-left: 20px;
     }
-    .back-to-top.visible {
-      opacity: 1;
-      visibility: visible;
-      transform: translate(-50%, 0);
+    body:not(.edit-mode) .back-to-top-wrap {
+      margin-top: 20px;
+    }
+    .back-to-top {
+      background: none;
+      border: none;
+      padding: 4px 6px 4px 0;
+      margin: 0;
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      transition: color .15s;
     }
     .back-to-top:hover {
-      border-color: rgba(79,171,255,.45);
-      background: var(--surface2);
+      color: var(--accent);
     }
   </style>
 </head>
@@ -461,14 +604,6 @@
     </div>
   </div>
 
-  <div class="mode-toggle-wrap">
-    <button class="mode-toggle" id="modeToggle" onclick="toggleMode()" aria-label="Toggle mode">
-      <span class="mode-thumb"></span>
-      <span class="toggle-symbol check">✓</span>
-      <span class="toggle-symbol edit">✎</span>
-    </button>
-  </div>
-
   <div id="statusBanner" class="status-banner" hidden></div>
 
   <div id="sections-wrap"></div>
@@ -489,9 +624,19 @@
     </div>
   </div>
 
+  <div class="back-to-top-wrap">
+    <button type="button" id="backToTop" class="back-to-top" onclick="scrollToTop()" aria-label="Back to top">Back to top</button>
+  </div>
+
 </div>
 
-<button type="button" id="backToTop" class="back-to-top" onclick="scrollToTop()" aria-label="Back to top">↑ Top</button>
+<div class="mode-toggle-wrap">
+  <button class="mode-toggle" id="modeToggle" onclick="toggleMode()" aria-label="Toggle mode">
+    <span class="mode-thumb"></span>
+    <span class="toggle-symbol check">✓</span>
+    <span class="toggle-symbol edit">✎</span>
+  </button>
+</div>
 
 <script>
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -1607,18 +1752,7 @@ function scrollToTop() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function updateBackToTopVisibility() {
-  const btn = document.getElementById('backToTop');
-  if (!btn) return;
-  const y = window.scrollY || document.documentElement.scrollTop || 0;
-  btn.classList.toggle('visible', y > 260);
-}
-
-window.addEventListener('scroll', updateBackToTopVisibility, { passive: true });
-window.addEventListener('resize', updateBackToTopVisibility, { passive: true });
-
 init();
-updateBackToTopVisibility();
 </script>
 </body>
 </html>
